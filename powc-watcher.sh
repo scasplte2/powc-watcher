@@ -180,7 +180,7 @@ process_file() {
 
     # Hash the file first to check for duplicates
     local current_hash
-    current_hash=$(sha256sum "$filepath" | cut -d' ' -f1)
+    current_hash=$(sha512sum "$filepath" | cut -d' ' -f1)
 
     # Check if this content was already submitted (duplicate detection via xattr)
     local last_proof
@@ -332,10 +332,10 @@ watch_files() {
     log_success "Watcher is running. Press Ctrl+C to stop."
     log_info ""
 
-    # Create temporary directory for tracking proofs across atomic saves
-    local proof_cache_dir="/tmp/powc-watcher-$$"
+    # Create persistent cache directory for tracking proofs across atomic saves and restarts
+    # Use a fixed location so cache persists between watcher restarts
+    local proof_cache_dir="/tmp/powc-watcher-cache"
     mkdir -p "$proof_cache_dir"
-    trap "rm -rf $proof_cache_dir" EXIT
 
     # Convert comma-separated paths to array
     IFS=',' read -ra PATHS <<< "$WATCH_PATHS"
@@ -358,9 +358,19 @@ watch_files() {
         fi
     done
 
+    # Record startup time to avoid processing spurious initial events
+    local startup_time=$(date +%s)
+
     # Watch for file changes
     # Using close_write and moved_to to catch saves and atomic renames
+    # Note: inotifywait in monitor mode doesn't fire events on startup, only on actual changes
     inotifywait -m -e close_write -e moved_to "${watch_args[@]}" --format '%e %w%f' 2>/dev/null | while read -r event filepath; do
+        # Skip events that fire within 1 second of startup (spurious events from editor/system)
+        local current_time=$(date +%s)
+        if [[ $((current_time - startup_time)) -lt 2 ]]; then
+            log_info "Skipping startup event for: $(basename "$filepath")"
+            continue
+        fi
         # Skip .proof.json files and temporary files
         if [[ "$filepath" == *.proof.json ]] || [[ "$filepath" == *~ ]] || [[ "$filepath" == */.*~ ]]; then
             continue
@@ -376,29 +386,41 @@ watch_files() {
         # Debounce first to ensure file operations are complete
         sleep "$DEBOUNCE_DELAY"
 
-        # Before processing, check if xattr is missing but we have it cached
-        # This handles atomic saves where the file was replaced
+        # Sync cache and xattr bidirectionally
+        # This handles both atomic saves (xattr lost) and cache loss (restart)
         local cache_file
         cache_file="$proof_cache_dir/$(echo "$filepath" | sha256sum | cut -d' ' -f1)"
 
-        # Check if xattr is missing
-        if ! getfattr -n user.powc.proof "$filepath" &>/dev/null; then
-            log_info "xattr missing, checking cache for: $(basename "$filepath")"
-            # Try to restore from cache
-            if [[ -f "$cache_file" ]]; then
-                local cached_proof
-                cached_proof=$(cat "$cache_file")
-                if [[ -n "$cached_proof" ]]; then
-                    if setfattr -n user.powc.proof -v "$cached_proof" "$filepath" 2>/dev/null; then
-                        log_info "Restored xattr from cache for: $(basename "$filepath")"
-                    else
-                        log_warn "Failed to restore xattr for: $(basename "$filepath")"
-                    fi
+        local has_xattr=false
+        local has_cache=false
+
+        if getfattr -n user.powc.proof "$filepath" &>/dev/null; then
+            has_xattr=true
+        fi
+
+        if [[ -f "$cache_file" ]]; then
+            has_cache=true
+        fi
+
+        # Case 1: Has xattr but no cache - populate cache from xattr
+        if [[ "$has_xattr" == "true" ]] && [[ "$has_cache" == "false" ]]; then
+            local xattr_proof
+            xattr_proof=$(getfattr -n user.powc.proof --only-values "$filepath" 2>/dev/null || echo "")
+            if [[ -n "$xattr_proof" ]]; then
+                echo "$xattr_proof" > "$cache_file"
+                log_info "Populated cache from xattr for: $(basename "$filepath")"
+            fi
+        # Case 2: Has cache but no xattr - restore xattr from cache (atomic save)
+        elif [[ "$has_xattr" == "false" ]] && [[ "$has_cache" == "true" ]]; then
+            log_info "xattr missing, restoring from cache for: $(basename "$filepath")"
+            local cached_proof
+            cached_proof=$(cat "$cache_file")
+            if [[ -n "$cached_proof" ]]; then
+                if setfattr -n user.powc.proof -v "$cached_proof" "$filepath" 2>/dev/null; then
+                    log_info "Restored xattr from cache for: $(basename "$filepath")"
                 else
-                    log_warn "Cache file empty for: $(basename "$filepath")"
+                    log_warn "Failed to restore xattr for: $(basename "$filepath")"
                 fi
-            else
-                log_info "No cache file found for: $(basename "$filepath")"
             fi
         fi
 

@@ -106,20 +106,20 @@ class PoWCSigner:
 
     def hash_file(self, file_path: str) -> str:
         """
-        Compute SHA-256 hash of file content (matching SDK format)
+        Compute SHA-512 hash of file content
 
         Args:
             file_path: Path to file to hash
 
         Returns:
-            Hex string of SHA-256 hash
+            Hex string of SHA-512 hash
         """
-        sha256 = hashlib.sha256()
+        sha512 = hashlib.sha512()
         try:
             with open(file_path, 'rb') as f:
                 while chunk := f.read(8192):
-                    sha256.update(chunk)
-            return sha256.hexdigest()
+                    sha512.update(chunk)
+            return sha512.hexdigest()
         except Exception as e:
             print(f"Error hashing file {file_path}: {e}", file=sys.stderr)
             sys.exit(1)
@@ -137,7 +137,7 @@ class PoWCSigner:
         Args:
             event_id: UUID for this fingerprint event
             document_id: Logical document identifier (max 256 chars)
-            document_ref: Content hash (SHA-256 of file, hex string)
+            document_ref: Content hash (SHA-512 of file, hex string)
             version: Version number (default 1)
 
         Returns:
