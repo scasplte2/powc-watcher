@@ -1,0 +1,25 @@
+# PoWC-Watcher Configuration
+# Copy this file to powc.conf and fill in your credentials
+
+# Digital Evidence Metagraph Credentials
+ORG_ID=550e8400-e29b-41d4-a716-446655440000
+TENANT_ID=123e4567-e89b-12d3-a456-426614174000
+API_KEY=your-api-key-here
+
+# Optional: Reuse existing secp256k1 private key (64 hex chars)
+# If not provided, a new key will be generated on first run and saved
+# PRIVATE_KEY=
+
+# API Configuration
+API_BASE_URL=https://de-api.constellationnetwork.io/v1
+
+# Watch Configuration
+# Comma-separated list of directories or files to watch
+WATCH_PATHS=./watched_files
+
+# Debounce delay in seconds (wait after file change before processing)
+DEBOUNCE_DELAY=2
+
+# Log Configuration
+LOG_FILE=./logs/powc-watcher.log
+VERBOSE=false

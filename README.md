@@ -30,8 +30,9 @@ File Save → inotify (CLOSE_WRITE) → SHA512 Hash → Sign (Python) → API Su
 ### 1. Install System Dependencies
 
 ```bash
-# Ubuntu/Debian
-sudo apt-get install inotify-tools jq curl python3 python3-pip
+# Ubuntu/Debian/Pop!_OS
+sudo apt-get update
+sudo apt-get install inotify-tools jq curl python3 python3-pip python3-venv
 
 # Verify installation
 inotifywait --version
@@ -41,15 +42,37 @@ python3 --version
 
 ### 2. Install Python Dependencies
 
+**Option A: Virtual Environment (Recommended)**
+
+```bash
+# Create and activate venv
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Deactivate
+deactivate
+```
+
+**Option B: Global Installation**
+
 ```bash
 pip install ecdsa rfc8785
 ```
+
+**Note:** The watcher script automatically detects and uses `./venv/bin/python3` if present, otherwise falls back to global `python3`.
 
 ### 3. Clone and Configure
 
 ```bash
 cd /home/scas/git/powc-watcher
 
+# Run setup script (handles dependencies and config)
+./setup.sh
+
+# Or manually:
 # Copy example config
 cp config/powc.conf.example config/powc.conf
 
@@ -82,6 +105,7 @@ API_BASE_URL=https://de-api.constellationnetwork.io/v1
 ### Start the Watcher
 
 ```bash
+# The script auto-detects venv if present
 ./powc-watcher.sh
 ```
 
@@ -251,6 +275,26 @@ powc-watcher/
 ```bash
 # In config/powc.conf
 WATCH_PATHS=./docs,./images,./contracts,/home/user/projects
+```
+
+### Using Virtual Environment
+
+The watcher automatically detects `venv/` or `.venv/`:
+
+```bash
+# Setup venv (recommended)
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+deactivate
+
+# Run watcher (auto-uses venv)
+./powc-watcher.sh
+```
+
+To switch back to global Python, remove venv:
+```bash
+rm -rf venv .venv
 ```
 
 ### Run as Background Service

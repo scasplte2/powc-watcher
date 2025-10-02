@@ -1,0 +1,28 @@
+# Configuration with secrets
+config/powc.conf
+
+# Generated keys
+config/private_key.txt
+
+# Logs
+logs/
+*.log
+
+# Output
+output/
+
+# Proof files (optional - you may want to commit these)
+*.proof.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
